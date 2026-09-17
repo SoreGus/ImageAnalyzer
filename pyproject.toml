@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "image-analyzer"
+version = "0.1.0"
+description = "Provider-independent image description and comparison library."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0",
+    "Pillow>=11.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "torch>=2.7",
+    "torchvision>=0.22",
+    "transformers>=4.57",
+    "accelerate>=1.10",
+]
+openai = ["openai>=1.100"]
+all = [
+    "torch>=2.7",
+    "transformers>=4.57",
+    "accelerate>=1.10",
+    "openai>=1.100",
+]
+
+[project.scripts]
+image-analyzer = "image_analyzer.cli.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

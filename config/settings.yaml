@@ -1,0 +1,18 @@
+# Local provider
+model:
+  provider: local
+  name: Qwen/Qwen3-VL-4B-Instruct
+
+# OpenAI provider
+# model:
+#   provider: openai
+#   name: YOUR_OPENAI_VISION_MODEL
+
+local:
+  backend: transformers
+  device: mps
+  model_dir: .models
+
+generation:
+  max_new_tokens: 2048
+  temperature: 0.1

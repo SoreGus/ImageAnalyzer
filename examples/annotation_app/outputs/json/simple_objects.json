@@ -1,0 +1,67 @@
+{
+  "description": "Simple geometric test image containing a red rectangle, teal circle and yellow triangle.",
+  "elements": [
+    {
+      "label": "red_rectangle",
+      "description": "Red rectangle",
+      "location": "left",
+      "color": "#E53935",
+      "bounding_box": {
+        "x_min": 0.18,
+        "y_min": 0.457,
+        "x_max": 0.5,
+        "y_max": 0.743
+      },
+      "attributes": {
+        "shape": "rectangle",
+        "color": "red"
+      }
+    },
+    {
+      "label": "teal_circle",
+      "description": "Teal circle",
+      "location": "right-center",
+      "color": "#00897B",
+      "bounding_box": {
+        "x_min": 0.61,
+        "y_min": 0.343,
+        "x_max": 0.82,
+        "y_max": 0.643
+      },
+      "attributes": {
+        "shape": "circle",
+        "color": "teal"
+      }
+    },
+    {
+      "label": "yellow_triangle",
+      "description": "Yellow triangle",
+      "location": "lower-right",
+      "color": "#FB8C00",
+      "bounding_box": {
+        "x_min": 0.61,
+        "y_min": 0.671,
+        "x_max": 0.835,
+        "y_max": 0.771
+      },
+      "attributes": {
+        "shape": "triangle",
+        "color": "yellow"
+      }
+    }
+  ],
+  "relations": [],
+  "source_image": "simple_objects.png",
+  "image_size": {
+    "width": 1000,
+    "height": 700
+  },
+  "bounding_box_format": {
+    "coordinates": "normalized",
+    "range": [
+      0.0,
+      1.0
+    ],
+    "origin": "top-left"
+  }
+}
