@@ -12,3 +12,7 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+examples/annotation_app/images/
+examples/annotation_app/sample_annotations/
+examples/annotation_app/outputs/

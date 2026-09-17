@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 import json
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -46,9 +47,13 @@ class AnnotationApp:
 
         self.index = 0
         self.annotation: dict[str, Any] = {}
+
         self.photo: ImageTk.PhotoImage | None = None
         self.preview_size = (1, 1)
         self.preview_offset = (0, 0)
+
+        self.analyzer: Any | None = None
+        self.analysis_running = False
 
         self._build_ui()
         self.load_current_sample()
@@ -66,34 +71,43 @@ class AnnotationApp:
             self.root,
             padding=8,
         )
+
         toolbar.pack(fill=tk.X)
 
-        ttk.Button(
+        self.previous_button = ttk.Button(
             toolbar,
             text="Previous",
             command=self.previous,
-        ).pack(side=tk.LEFT)
+        )
 
-        ttk.Button(
+        self.previous_button.pack(side=tk.LEFT)
+
+        self.next_button = ttk.Button(
             toolbar,
             text="Next",
             command=self.next,
-        ).pack(
+        )
+
+        self.next_button.pack(
             side=tk.LEFT,
             padx=(6, 12),
         )
 
-        ttk.Button(
+        self.load_sample_button = ttk.Button(
             toolbar,
             text="Load Sample",
             command=self.load_current_sample,
-        ).pack(side=tk.LEFT)
+        )
 
-        ttk.Button(
+        self.load_sample_button.pack(side=tk.LEFT)
+
+        self.analyze_button = ttk.Button(
             toolbar,
             text="Analyze Current",
             command=self.analyze_current,
-        ).pack(
+        )
+
+        self.analyze_button.pack(
             side=tk.LEFT,
             padx=6,
         )
@@ -137,16 +151,31 @@ class AnnotationApp:
             padx=6,
         )
 
+        self.progress = ttk.Progressbar(
+            toolbar,
+            mode="indeterminate",
+            length=100,
+        )
+
+        self.progress.pack(
+            side=tk.RIGHT,
+            padx=(8, 0),
+        )
+
+        self.progress.pack_forget()
+
         self.status = ttk.Label(
             toolbar,
             text="",
         )
+
         self.status.pack(side=tk.RIGHT)
 
         paned = ttk.Panedwindow(
             self.root,
             orient=tk.HORIZONTAL,
         )
+
         paned.pack(
             fill=tk.BOTH,
             expand=True,
@@ -208,6 +237,9 @@ class AnnotationApp:
         )
 
     def previous(self) -> None:
+        if self.analysis_running:
+            return
+
         self.index = (
             self.index - 1
         ) % len(self.image_paths)
@@ -215,6 +247,9 @@ class AnnotationApp:
         self.load_current_sample()
 
     def next(self) -> None:
+        if self.analysis_running:
+            return
+
         self.index = (
             self.index + 1
         ) % len(self.image_paths)
@@ -222,6 +257,9 @@ class AnnotationApp:
         self.load_current_sample()
 
     def load_current_sample(self) -> None:
+        if self.analysis_running:
+            return
+
         if not self.sample_annotation_path.exists():
             self.annotation = {
                 "description": "",
@@ -251,27 +289,149 @@ class AnnotationApp:
         )
 
     def analyze_current(self) -> None:
+        if self.analysis_running:
+            return
+
+        image_path = self.image_path
+
+        self.analysis_running = True
+
+        self.analyze_button.config(
+            state=tk.DISABLED
+        )
+
+        self.previous_button.config(
+            state=tk.DISABLED
+        )
+
+        self.next_button.config(
+            state=tk.DISABLED
+        )
+
+        self.load_sample_button.config(
+            state=tk.DISABLED
+        )
+
+        self.status.config(
+            text=f"Analyzing: {image_path.name}"
+        )
+
+        self.progress.pack(
+            side=tk.RIGHT,
+            padx=(8, 0),
+        )
+
+        self.progress.start(10)
+
+        thread = threading.Thread(
+            target=self._analyze_worker,
+            args=(image_path,),
+            daemon=True,
+        )
+
+        thread.start()
+
+    def _analyze_worker(
+        self,
+        image_path: Path,
+    ) -> None:
         try:
-            from image_analyzer import ImageAnalyzer
+            if self.analyzer is None:
+                from image_analyzer import ImageAnalyzer
 
-            result = ImageAnalyzer().describe(
-                self.image_path
+                self.root.after(
+                    0,
+                    self.status.config,
+                    {
+                        "text": "Loading model..."
+                    },
+                )
+
+                self.analyzer = ImageAnalyzer()
+
+            self.root.after(
+                0,
+                self.status.config,
+                {
+                    "text": f"Analyzing: {image_path.name}"
+                },
             )
 
-            self.annotation = with_colors(
-                json.loads(result.to_json())
+            result = self.analyzer.describe(
+                image_path
             )
 
-            self.refresh()
-
-            self.status.config(
-                text=f"Analyzed: {self.image_path.name}"
+            annotation = with_colors(
+                json.loads(
+                    result.to_json()
+                )
             )
+
+            self.root.after(
+                0,
+                self._analysis_completed,
+                image_path,
+                annotation,
+            )
+
         except Exception as error:
-            messagebox.showerror(
-                "Analysis failed",
+            self.root.after(
+                0,
+                self._analysis_failed,
                 str(error),
             )
+
+    def _analysis_completed(
+        self,
+        image_path: Path,
+        annotation: dict[str, Any],
+    ) -> None:
+        self.annotation = annotation
+
+        self.refresh()
+
+        self.status.config(
+            text=f"Analyzed: {image_path.name}"
+        )
+
+        self._finish_analysis_state()
+
+    def _analysis_failed(
+        self,
+        error: str,
+    ) -> None:
+        self._finish_analysis_state()
+
+        self.status.config(
+            text="Analysis failed"
+        )
+
+        messagebox.showerror(
+            "Analysis failed",
+            error,
+        )
+
+    def _finish_analysis_state(self) -> None:
+        self.analysis_running = False
+
+        self.progress.stop()
+        self.progress.pack_forget()
+
+        self.analyze_button.config(
+            state=tk.NORMAL
+        )
+
+        self.previous_button.config(
+            state=tk.NORMAL
+        )
+
+        self.next_button.config(
+            state=tk.NORMAL
+        )
+
+        self.load_sample_button.config(
+            state=tk.NORMAL
+        )
 
     def refresh(self) -> None:
         self.render_preview()
@@ -382,7 +542,9 @@ class AnnotationApp:
             if not isinstance(element, dict):
                 continue
 
-            box = element.get("bounding_box")
+            box = element.get(
+                "bounding_box"
+            )
 
             if not isinstance(box, dict):
                 continue
@@ -392,7 +554,9 @@ class AnnotationApp:
                     0.0,
                     min(
                         1.0,
-                        float(box["x_min"]),
+                        float(
+                            box["x_min"]
+                        ),
                     ),
                 )
 
@@ -400,7 +564,9 @@ class AnnotationApp:
                     0.0,
                     min(
                         1.0,
-                        float(box["y_min"]),
+                        float(
+                            box["y_min"]
+                        ),
                     ),
                 )
 
@@ -408,7 +574,9 @@ class AnnotationApp:
                     0.0,
                     min(
                         1.0,
-                        float(box["x_max"]),
+                        float(
+                            box["x_max"]
+                        ),
                     ),
                 )
 
@@ -416,9 +584,12 @@ class AnnotationApp:
                     0.0,
                     min(
                         1.0,
-                        float(box["y_max"]),
+                        float(
+                            box["y_max"]
+                        ),
                     ),
                 )
+
             except (
                 KeyError,
                 TypeError,
@@ -601,10 +772,13 @@ class AnnotationApp:
 
 def main() -> None:
     root = tk.Tk()
-    AnnotationApp(root)
+
+    AnnotationApp(
+        root
+    )
+
     root.mainloop()
 
 
 if __name__ == "__main__":
     main()
-    
