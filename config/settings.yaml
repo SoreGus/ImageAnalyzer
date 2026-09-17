@@ -6,7 +6,7 @@ model:
 # OpenAI provider
 # model:
 #   provider: openai
-#   name: YOUR_OPENAI_VISION_MODEL
+#   name: gpt-5-nano
 
 local:
   backend: transformers
