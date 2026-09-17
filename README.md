@@ -8,7 +8,7 @@ Python 3.14 library for provider-independent image description and image compari
 - `compare(reference, candidate)`: image similarity and identification of missing, added, changed and moved elements.
 - Local and OpenAI providers behind the same public API.
 - JSON-serializable structured results.
-- Visual examples with bounding-box and annotation export.
+- Provider-independent model selection through configuration.
 
 ## Setup
 
@@ -42,33 +42,59 @@ Validate the environment:
 image-analyzer doctor
 ```
 
-Edit `config/settings.yaml` to select the provider and model.
+## Configuration
 
-Example local configuration:
+Provider and model selection are configured in:
+
+```text
+config/settings.yaml
+```
+
+### Local provider
 
 ```yaml
 model:
   provider: local
   name: Qwen/Qwen3-VL-4B-Instruct
+
+local:
+  backend: transformers
+  device: mps
+  model_dir: .models
+
+generation:
+  max_new_tokens: 2048
+  temperature: 0.1
 ```
 
-Example OpenAI configuration:
+The local provider uses Hugging Face Transformers.
+
+On Apple Silicon, `mps` can be used to run supported model workloads on the GPU.
+
+### OpenAI provider
 
 ```yaml
 model:
   provider: openai
-  name: YOUR_OPENAI_VISION_MODEL
+  name: gpt-5-nano
+
+local:
+  backend: transformers
+  device: mps
+  model_dir: .models
+
+generation:
+  max_new_tokens: 2048
+  temperature: 0.1
 ```
 
-For OpenAI, set `OPENAI_API_KEY` in `.env`.
+For OpenAI, configure the API key in `.env`:
 
-### Deactivate the virtual environment
-
-When finished:
-
-```bash
-deactivate
+```text
+OPENAI_API_KEY=your_api_key
 ```
+
+No provider-specific model is hard-coded into the public `ImageAnalyzer` API.
 
 ## Usage
 
@@ -77,79 +103,119 @@ from image_analyzer import ImageAnalyzer
 
 analyzer = ImageAnalyzer()
 
-description = analyzer.describe("image.jpg")
-print(description.to_json())
+description = analyzer.describe(
+    "image.jpg"
+)
 
+print(
+    description.to_json()
+)
+```
+
+Image comparison uses the same analyzer instance:
+
+```python
 comparison = analyzer.compare(
     "reference.jpg",
     "candidate.jpg",
 )
-print(comparison.to_json())
+
+print(
+    comparison.to_json()
+)
 ```
 
-## Examples
+## Describe
 
-The repository includes sample images, visual annotation tools and export workflows.
+`describe(image)` analyzes a single image and returns structured information including:
 
-### Describe
+- overall scene description;
+- visible elements;
+- approximate normalized bounding boxes;
+- human-readable locations;
+- visual attributes;
+- spatial and semantic relationships.
 
-Run with the bundled sample image:
+Bounding-box coordinates are normalized from `0.0` to `1.0` with the origin at the top-left.
 
-```bash
-python examples/basic/describe.py
-```
+## Compare
 
-Or provide your own image:
+`compare(reference, candidate)` compares two images and returns structured information including:
 
-```bash
-python examples/basic/describe.py path/to/image.png
-```
+- overall similarity;
+- comparison summary;
+- missing elements;
+- added elements;
+- changed elements;
+- moved elements;
+- appearance differences.
 
-### Compare
+The reference image represents the expected or original state, while the candidate image represents the image being evaluated.
 
-Run with the bundled reference and candidate images:
+## Providers
 
-```bash
-python examples/basic/compare.py
-```
+ImageAnalyzer exposes the same public API regardless of the configured provider.
 
-Or provide your own images:
+The current providers are:
 
-```bash
-python examples/basic/compare.py \
-  path/to/reference.png \
-  path/to/candidate.png
-```
+- `local`
+- `openai`
 
-### Annotation App
+Provider selection is performed through `config/settings.yaml`.
 
-Run the visual annotation and export example:
+Application code does not need to change when switching providers.
 
-```bash
-python examples/annotation_app/app.py
-```
+## Local Runtime
 
-It can preview bounding boxes, run the configured analyzer and export JSON and annotated image copies without modifying the originals.
-
-See `examples/README.md` for more details.
-
-## Local Model
-
-The initial local configuration targets:
+The current local model is:
 
 ```text
 Qwen/Qwen3-VL-4B-Instruct
 ```
 
-The local runtime uses the provider abstraction, so the public `ImageAnalyzer` API does not depend on the underlying model.
+The local provider loads the model through Transformers and automatically initializes it when required.
+
+Model files are stored in the configured local model directory:
+
+```text
+.models
+```
+
+The runtime may distribute model components across available devices depending on hardware and memory availability.
 
 ## OpenAI
 
-OpenAI uses the same public API.
+The current OpenAI model is:
 
-Provider and model selection are configured through `config/settings.yaml`, while `OPENAI_API_KEY` is read from `.env`.
+```text
+gpt-5-nano
+```
 
-No OpenAI model is hard-coded into the library.
+The OpenAI provider uses the same `describe()` and `compare()` interfaces as the local provider.
+
+Authentication is performed through:
+
+```text
+OPENAI_API_KEY
+```
+
+The API key is read from the environment and is not stored in source code.
+
+## CLI
+
+Bootstrap the configured environment:
+
+```bash
+image-analyzer bootstrap
+```
+
+Validate the current setup:
+
+```bash
+image-analyzer doctor
+```
+
+These commands use the provider selected in `config/settings.yaml`.
 
 ## Development
 
@@ -162,10 +228,14 @@ make clean
 make
 ```
 
-Then activate it again:
+Activate the environment again:
 
 ```bash
 source .venv/bin/activate
 ```
 
-No tests are included at this stage.
+When finished:
+
+```bash
+deactivate
+```
